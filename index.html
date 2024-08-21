@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animated Neural Network</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+            display: block;
+            margin: 20px auto;
+            padding: 1cm;
+            box-sizing: border-box;
+        }
+        #controls, #legend, #explanation {
+            text-align: center;
+            margin-top: 10px;
+        }
+        #infoButton {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            //padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #explanationText {
+            display: none;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f1f1f1;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="networkCanvas" width="800" height="500"></canvas>
+    <div id="controls">
+        <button id="startTraining">Start Training</button>
+        <button id="stopTraining">Stop Training</button>
+        <select id="trainingSpeed">
+            <option value="1000">Slow</option>
+            <option value="100">Fast</option>
+        </select>
+        <button id="infoButton">Show Info</button>
+    </div>
+    <div id="legend">
+        <p id="stepCounter">Step: 0</p>
+        <p id="hiddenLayerValues">Hidden Layer Values: </p>
+        <p id="calculations">Calculations: </p>
+    </div>
+    <div id="explanation">
+        <div id="explanationText"></div>
+    </div>
+    <script>
+        const canvas = document.getElementById('networkCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const layers = [
+            { count: 3, y: 100 }, // Input layer
+            { count: 4, y: 250 }, // Hidden layer
+            { count: 2, y: 400 }  // Output layer
+        ];
+
+        const neuronRadius = 20;
+        let currentExample = 0;
+        let step = 0;
+        let trainingInterval;
+        let trainingSpeed = 1000; // Default to slow speed (1000ms)
+
+        // Maximum number of steps
+        const maxSteps = 1000;
+
+        // Target accuracy
+        const targetAccuracyThreshold = 0.1;
+
+        // Error tolerance (minimum)
+        const errorToleranceThreshold = 0.01;
+
+        // Example data: [Input1, Input2, Input3, Expected Output1, Expected Output2]
+        const examples = [
+            [0, 0, 0, 0, 1],
+            [0, 1, 1, 1, 0],
+            [1, 0, 1, 1, 1],
+            [1, 1, 0, 0, 0]
+        ];
+
+        // Fixed weights for demonstration
+        const weights = {
+            inputToHidden: [
+                [0.5, -0.2, 0.3, 0.8],
+                [-0.7, 0.9, -0.4, 0.1],
+                [0.6, -0.1, 0.5, -0.3]
+            ],
+            hiddenToOutput: [
+                [0.2, -0.5],
+                [0.7, -0.8],
+                [-0.6, 0.4],
+                [0.3, -0.2]
+            ]
+        };
+
+        function drawNeuron(x, y, value) {
+            ctx.beginPath();
+            ctx.arc(x, y, neuronRadius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgb(${Math.floor(value * 255)}, ${Math.floor(value * 255)}, 255)`;
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = 'black';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(value.toFixed(2), x, y);
+        }
+
+        function drawConnection(x1, y1, x2, y2, weight) {
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = weight > 0 ? 'green' : 'red';
+            ctx.lineWidth = Math.abs(weight) * 5;
+            ctx.stroke();
+            ctx.lineWidth = 1;
+
+            // Display weight
+            const midX = (x1 + x2) / 2;
+            const midY = (y1 + y2) / 2;
+            ctx.fillStyle = 'black';
+            ctx.font = '12px Arial';
+            ctx.fillText(weight.toFixed(2), midX, midY);
+        }
+
+        function sigmoid(x) {
+            return 1 / (1 + Math.exp(-x));
+        }
+
+        function forwardPropagate(inputs) {
+            let activations = inputs;
+            let hiddenLayerActivations = [];
+            let calculations = [];
+            for (let i = 1; i < layers.length; i++) {
+                const newActivations = [];
+                const layerCalculations = [];
+                for (let j = 0; j < layers[i].count; j++) {
+                    let sum = 0;
+                    let neuronCalculation = `Neuron ${j + 1}: `;
+                    for (let k = 0; k < activations.length; k++) {
+                        const weight = i === 1 ? weights.inputToHidden[k][j] : weights.hiddenToOutput[k][j];
+                        sum += activations[k] * weight;
+                        neuronCalculation += `${activations[k].toFixed(2)}*${weight.toFixed(2)} + `;
+                    }
+                    const activation = sigmoid(sum);
+                    neuronCalculation += `= ${activation.toFixed(2)}`;
+                    layerCalculations.push(neuronCalculation);
+                    newActivations.push(activation);
+                }
+                calculations.push(layerCalculations);
+                activations = newActivations;
+                if (i === 1) { // Store hidden layer activations
+                    hiddenLayerActivations = [...activations];
+                }
+            }
+            return { activations, hiddenLayerActivations, calculations };
+        }
+
+        function backpropagate(inputs, expectedOutputs, learningRate = 0.1) {
+            const { activations, hiddenLayerActivations } = forwardPropagate(inputs);
+
+            // Error calculation
+            const outputErrors = expectedOutputs.map((expected, i) => expected - activations[i]);
+
+            // Update weights for hiddenToOutput
+            for (let j = 0; j < weights.hiddenToOutput.length; j++) {
+                for (let k = 0; k < weights.hiddenToOutput[j].length; k++) {
+                    const delta = outputErrors[k] * activations[k] * (1 - activations[k]) * hiddenLayerActivations[j];
+                    weights.hiddenToOutput[j][k] += learningRate * delta;
+                }
+            }
+
+            // Errors for hidden layer
+            const hiddenErrors = hiddenLayerActivations.map((_, j) => {
+                return weights.hiddenToOutput[j].reduce((sum, weight, k) => sum + weight * outputErrors[k], 0);
+            });
+
+            // Update weights for inputToHidden
+            for (let j = 0; j < weights.inputToHidden.length; j++) {
+                for (let k = 0; k < weights.inputToHidden[j].length; k++) {
+                    const delta = hiddenErrors[k] * hiddenLayerActivations[k] * (1 - hiddenLayerActivations[k]) * inputs[j];
+                    weights.inputToHidden[j][k] += learningRate * delta;
+                }
+            }
+        }
+
+        function calculateMeanSquaredError(activations, expectedOutputs) {
+            return activations.reduce((sum, activation, index) => sum + Math.pow(activation - expectedOutputs[index], 2), 0) / activations.length;
+        }
+
+        function hasReachedTargetAccuracy(activations, expectedOutputs, threshold = targetAccuracyThreshold) {
+            return activations.every((activation, index) => Math.abs(activation - expectedOutputs[index]) < threshold);
+        }
+
+        function drawNetwork(inputs, expectedOutputs) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const layerSpacing = (canvas.width - 2 * neuronRadius) / (layers.length + 1);
+
+            let activations = inputs;
+            let hiddenLayerValues = [];
+            let calculations = [];
+            layers.forEach((layer, layerIndex) => {
+                const neuronSpacing = (canvas.height - 2 * neuronRadius) / (layer.count + 1);
+                for (let i = 0; i < layer.count; i++) {
+                    const x = (layerIndex + 1) * layerSpacing;
+                    const y = (i + 1) * neuronSpacing;
+                    const value = activations[i] || 0;
+                    drawNeuron(x, y, value);
+
+                    if (layerIndex < layers.length - 1) {
+                        const nextLayer = layers[layerIndex + 1];
+                        const nextNeuronSpacing = (canvas.height - 2 * neuronRadius) / (nextLayer.count + 1);
+                        for (let j = 0; j < nextLayer.count; j++) {
+                            const nextX = (layerIndex + 2) * layerSpacing;
+                            const nextY = (j + 1) * nextNeuronSpacing;
+                            const weight = layerIndex === 0 ? weights.inputToHidden[i][j] : weights.hiddenToOutput[i][j];
+                            drawConnection(x, y, nextX, nextY, weight);
+                        }
+                    }
+                }
+                if (layerIndex < layers.length - 1) {
+                    const result = forwardPropagate(activations);
+                    activations = result.activations;
+                    if (layerIndex === 0) {
+                        hiddenLayerValues = result.hiddenLayerActivations;
+                    }
+                    calculations = result.calculations;
+                }
+            });
+
+            // Display input and output values
+            ctx.fillStyle = 'black';
+            ctx.font = '16px Arial';
+            ctx.fillText(`Input: [${inputs.join(', ')}]`, 50, 20);
+            ctx.fillText(`Expected Output: [${expectedOutputs.join(', ')}]`, 81, 40);
+            ctx.fillText(`Actual Output: [${activations.map(a => a.toFixed(2)).join(', ')}]`, 93, 60);
+
+            // Update step counter and hidden layer values
+            document.getElementById('stepCounter').innerText = `Step: ${step}`;
+            document.getElementById('hiddenLayerValues').innerText = `Hidden Layer Values: [${hiddenLayerValues.map(a => a.toFixed(2)).join(', ')}]`;
+            document.getElementById('calculations').innerHTML = `Calculations:<br>${calculations.map((layerCalc, index) => `Layer ${index + 1}:<br>${layerCalc.join('<br>')}`).join('<br><br>')}`;
+
+            // Update explanation
+            updateExplanation(inputs, expectedOutputs, activations);
+        }
+
+        function nextExample() {
+            const example = examples[currentExample];
+            const { activations } = forwardPropagate(example.slice(0, 3));
+            drawNetwork(example.slice(0, 3), example.slice(3));
+            backpropagate(example.slice(0, 3), example.slice(3));
+            step++;
+
+            // Check if training conditions are met
+            const mse = calculateMeanSquaredError(activations, example.slice(3));
+            if (step >= maxSteps || hasReachedTargetAccuracy(activations, example.slice(3)) || mse < errorToleranceThreshold) {
+                stopTraining();
+                alert(`Training ended after ${step} steps.`);
+            }
+
+            currentExample = (currentExample + 1) % examples.length;
+        }
+
+        function startTraining() {
+            if (!trainingInterval) {
+                trainingInterval = setInterval(nextExample, trainingSpeed);
+            }
+        }
+
+        function stopTraining() {
+            clearInterval(trainingInterval);
+            trainingInterval = null;
+        }
+
+        function changeTrainingSpeed() {
+            trainingSpeed = parseInt(document.getElementById('trainingSpeed').value);
+            if (trainingInterval) {
+                stopTraining();
+                startTraining();
+            }
+        }
+
+        function updateExplanation(inputs, expectedOutputs, actualOutputs) {
+            const explanationText = document.getElementById('explanationText');
+            explanationText.innerHTML = `
+                <h3>Explanation:</h3>
+                <p>The network processes the input through the layers:</p>
+                <p>The input values are fed into the input layer.</p>
+                <p>These values are then multiplied by the weights connecting to the hidden layer and summed.</p>
+                <p>The sigmoid function is applied to each sum in the hidden layer to get the activation values.</p>
+                <p>The process repeats from the hidden layer to the output layer.</p>
+                <p>The final output is compared to the expected output to calculate the error.</p>
+                <p>The error is then used to adjust the weights through backpropagation.</p>
+                <p>The goal is to minimize the difference between the actual and expected outputs over many training steps.</p>
+            `;
+        }
+
+        function toggleExplanation() {
+            const explanationText = document.getElementById('explanationText');
+            if (explanationText.style.display === 'none') {
+                explanationText.style.display = 'block';
+            } else {
+                explanationText.style.display = 'none';
+            }
+        }
+
+        document.getElementById('startTraining').addEventListener('click', startTraining);
+        document.getElementById('stopTraining').addEventListener('click', stopTraining);
+        document.getElementById('trainingSpeed').addEventListener('change', changeTrainingSpeed);
+        document.getElementById('infoButton').addEventListener('click', toggleExplanation);
+
+        // Initial call
+        drawNetwork(examples[0].slice(0, 3), examples[0].slice(3));
+    </script>
+</body>
+</html>
