@@ -35,7 +35,7 @@ No additional dependencies or installation steps are required as this is a pure 
 2. Click the "Start Training" button to begin the training process.
 3. Use the speed dropdown to adjust the training speed between "Slow" and "Fast".
 4. Click the "Stop Training" button to pause the training at any time.
-5. Use the "Show Info" button to toggle detailed explanations of each training step.
+5. Use the "Show Info" button to toggle an explanations of each training step.
 
 ## How It Works
 
