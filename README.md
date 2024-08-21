@@ -1,4 +1,4 @@
-# Interactive Neural Network Visualization
+# Neural Network Visualization
 
 This project provides an interactive visualization of a simple neural network, demonstrating the training process and how the network learns to map inputs to outputs.
 
