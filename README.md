@@ -63,3 +63,28 @@ Contributions to improve the visualization or extend its capabilities are welcom
 
 Distributed under the MIT License. See `LICENSE` file for more information.
 
+## DISCLAIMER
+
+This software is an experimental code developed solely for demonstration purposes and to visualize the basic functioning of a neural network.
+
+## Please note:
+
+1. No Guarantee of Accuracy: The values, calculations, and results presented in this software do not claim to be accurate or precise. They serve only to illustrate the concept of a neural network.
+
+2. Experimental Nature: This code is experimental and not suitable for production use or scientific purposes. It may contain errors, inaccuracies, or simplified representations.
+
+3. Visualization Purpose: The primary purpose of this software is to visually represent the structure and basic functionality of a neural network. It is not designed to perform precise or reliable calculations.
+
+4. No Liability: The developers and providers of this software assume no liability for any damages or consequences that may arise from the use or misinterpretation of the information presented.
+
+5. Educational Purpose: This software is intended as a learning and teaching tool to provide a basic understanding of neural networks. It does not replace expert knowledge or professional implementations.
+
+6. Simplified Model: The neural network model presented here is greatly simplified and may not accurately represent the complexity and capabilities of advanced neural network architectures used in real-world applications.
+
+7. Not for Decision Making: The outputs and results from this software should not be used for any decision-making processes or as a basis for any kind of analysis or conclusion.
+
+8. Continuous Development: This software is subject to change and may be updated or modified without notice. The current version may not reflect the most recent developments in neural network theory or practice.
+
+By using this software, you agree to this disclaimer and acknowledge that the information and calculations presented may not reflect reality or the current state of the art in the field of neural networks.
+
+
