@@ -20,7 +20,6 @@
             background-color: #4CAF50;
             border: none;
             color: white;
-            //padding: 10px 20px;
             text-align: center;
             text-decoration: none;
             display: inline-block;
@@ -45,7 +44,7 @@
         <button id="stopTraining">Stop Training</button>
         <select id="trainingSpeed">
             <option value="1000">Slow</option>
-            <option value="100">Fast</option>
+            <option value="1">Fast</option>
         </select>
         <button id="infoButton">Show Info</button>
     </div>
@@ -74,7 +73,7 @@
         let trainingSpeed = 1000; // Default to slow speed (1000ms)
 
         // Maximum number of steps
-        const maxSteps = 1000;
+        const maxSteps = 5000;
 
         // Target accuracy
         const targetAccuracyThreshold = 0.1;
@@ -143,55 +142,69 @@
             let activations = inputs;
             let hiddenLayerActivations = [];
             let calculations = [];
+            
             for (let i = 1; i < layers.length; i++) {
                 const newActivations = [];
                 const layerCalculations = [];
+                
                 for (let j = 0; j < layers[i].count; j++) {
                     let sum = 0;
                     let neuronCalculation = `Neuron ${j + 1}: `;
+                    
                     for (let k = 0; k < activations.length; k++) {
                         const weight = i === 1 ? weights.inputToHidden[k][j] : weights.hiddenToOutput[k][j];
                         sum += activations[k] * weight;
                         neuronCalculation += `${activations[k].toFixed(2)}*${weight.toFixed(2)} + `;
                     }
+                    
+                    // Remove the last ' + ' and add ' = '
+                    neuronCalculation = neuronCalculation.slice(0, -3) + ' = ';
+                    
                     const activation = sigmoid(sum);
-                    neuronCalculation += `= ${activation.toFixed(2)}`;
+                    neuronCalculation += `${sum.toFixed(4)} (${activation.toFixed(2)} after sigmoid)`;
+                    
                     layerCalculations.push(neuronCalculation);
                     newActivations.push(activation);
                 }
+                
                 calculations.push(layerCalculations);
                 activations = newActivations;
+                
                 if (i === 1) { // Store hidden layer activations
                     hiddenLayerActivations = [...activations];
                 }
             }
+            
             return { activations, hiddenLayerActivations, calculations };
         }
 
         function backpropagate(inputs, expectedOutputs, learningRate = 0.1) {
             const { activations, hiddenLayerActivations } = forwardPropagate(inputs);
 
-            // Error calculation
-            const outputErrors = expectedOutputs.map((expected, i) => expected - activations[i]);
+            // Error calculation for output layer
+            const outputErrors = expectedOutputs.map((expected, i) => {
+                const output = activations[i];
+                return (expected - output) * output * (1 - output);
+            });
 
             // Update weights for hiddenToOutput
             for (let j = 0; j < weights.hiddenToOutput.length; j++) {
                 for (let k = 0; k < weights.hiddenToOutput[j].length; k++) {
-                    const delta = outputErrors[k] * activations[k] * (1 - activations[k]) * hiddenLayerActivations[j];
-                    weights.hiddenToOutput[j][k] += learningRate * delta;
+                    const delta = learningRate * outputErrors[k] * hiddenLayerActivations[j];
+                    weights.hiddenToOutput[j][k] += delta;
                 }
             }
 
             // Errors for hidden layer
-            const hiddenErrors = hiddenLayerActivations.map((_, j) => {
-                return weights.hiddenToOutput[j].reduce((sum, weight, k) => sum + weight * outputErrors[k], 0);
+            const hiddenErrors = hiddenLayerActivations.map((hidden, j) => {
+                return weights.hiddenToOutput[j].reduce((sum, weight, k) => sum + weight * outputErrors[k], 0) * hidden * (1 - hidden);
             });
 
             // Update weights for inputToHidden
             for (let j = 0; j < weights.inputToHidden.length; j++) {
                 for (let k = 0; k < weights.inputToHidden[j].length; k++) {
-                    const delta = hiddenErrors[k] * hiddenLayerActivations[k] * (1 - hiddenLayerActivations[k]) * inputs[j];
-                    weights.inputToHidden[j][k] += learningRate * delta;
+                    const delta = learningRate * hiddenErrors[k] * inputs[j];
+                    weights.inputToHidden[j][k] += delta;
                 }
             }
         }
@@ -205,56 +218,69 @@
         }
 
         function drawNetwork(inputs, expectedOutputs) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const layerSpacing = (canvas.width - 2 * neuronRadius) / (layers.length + 1);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const layerSpacing = (canvas.width - 2 * neuronRadius) / (layers.length + 1);
 
-            let activations = inputs;
-            let hiddenLayerValues = [];
-            let calculations = [];
-            layers.forEach((layer, layerIndex) => {
-                const neuronSpacing = (canvas.height - 2 * neuronRadius) / (layer.count + 1);
-                for (let i = 0; i < layer.count; i++) {
-                    const x = (layerIndex + 1) * layerSpacing;
-                    const y = (i + 1) * neuronSpacing;
-                    const value = activations[i] || 0;
-                    drawNeuron(x, y, value);
+    let activations = inputs;
+    let hiddenLayerValues = [];
+    let calculations = [];
 
-                    if (layerIndex < layers.length - 1) {
-                        const nextLayer = layers[layerIndex + 1];
-                        const nextNeuronSpacing = (canvas.height - 2 * neuronRadius) / (nextLayer.count + 1);
-                        for (let j = 0; j < nextLayer.count; j++) {
-                            const nextX = (layerIndex + 2) * layerSpacing;
-                            const nextY = (j + 1) * nextNeuronSpacing;
-                            const weight = layerIndex === 0 ? weights.inputToHidden[i][j] : weights.hiddenToOutput[i][j];
-                            drawConnection(x, y, nextX, nextY, weight);
-                        }
-                    }
-                }
-                if (layerIndex < layers.length - 1) {
-                    const result = forwardPropagate(activations);
-                    activations = result.activations;
-                    if (layerIndex === 0) {
-                        hiddenLayerValues = result.hiddenLayerActivations;
-                    }
-                    calculations = result.calculations;
-                }
-            });
+    // First, draw all connections
+    for (let layerIndex = 0; layerIndex < layers.length - 1; layerIndex++) {
+        const currentLayer = layers[layerIndex];
+        const nextLayer = layers[layerIndex + 1];
+        const currentNeuronSpacing = (canvas.height - 2 * neuronRadius) / (currentLayer.count + 1);
+        const nextNeuronSpacing = (canvas.height - 2 * neuronRadius) / (nextLayer.count + 1);
 
-            // Display input and output values
-            ctx.fillStyle = 'black';
-            ctx.font = '16px Arial';
-            ctx.fillText(`Input: [${inputs.join(', ')}]`, 50, 20);
-            ctx.fillText(`Expected Output: [${expectedOutputs.join(', ')}]`, 81, 40);
-            ctx.fillText(`Actual Output: [${activations.map(a => a.toFixed(2)).join(', ')}]`, 93, 60);
+        for (let i = 0; i < currentLayer.count; i++) {
+            const x1 = (layerIndex + 1) * layerSpacing;
+            const y1 = (i + 1) * currentNeuronSpacing;
 
-            // Update step counter and hidden layer values
-            document.getElementById('stepCounter').innerText = `Step: ${step}`;
-            document.getElementById('hiddenLayerValues').innerText = `Hidden Layer Values: [${hiddenLayerValues.map(a => a.toFixed(2)).join(', ')}]`;
-            document.getElementById('calculations').innerHTML = `Calculations:<br>${calculations.map((layerCalc, index) => `Layer ${index + 1}:<br>${layerCalc.join('<br>')}`).join('<br><br>')}`;
-
-            // Update explanation
-            updateExplanation(inputs, expectedOutputs, activations);
+            for (let j = 0; j < nextLayer.count; j++) {
+                const x2 = (layerIndex + 2) * layerSpacing;
+                const y2 = (j + 1) * nextNeuronSpacing;
+                const weight = layerIndex === 0 ? weights.inputToHidden[i][j] : weights.hiddenToOutput[i][j];
+                drawConnection(x1, y1, x2, y2, weight);
+            }
         }
+    }
+
+    // Then, draw all neurons
+    layers.forEach((layer, layerIndex) => {
+        const neuronSpacing = (canvas.height - 2 * neuronRadius) / (layer.count + 1);
+        for (let i = 0; i < layer.count; i++) {
+            const x = (layerIndex + 1) * layerSpacing;
+            const y = (i + 1) * neuronSpacing;
+            const value = activations[i] || 0;
+            drawNeuron(x, y, value);
+        }
+
+        if (layerIndex < layers.length - 1) {
+            const result = forwardPropagate(activations);
+            activations = result.activations;
+            if (layerIndex === 0) {
+                hiddenLayerValues = result.hiddenLayerActivations;
+            }
+            calculations = result.calculations;
+        }
+    });
+
+    // Display input and output values
+    ctx.fillStyle = 'black';
+    ctx.font = '16px Arial';
+    ctx.fillText(`Input: [${inputs.join(', ')}]`, 50, 20);
+    ctx.fillText(`Expected Output: [${expectedOutputs.join(', ')}]`, 82, 40);
+    ctx.fillText(`Actual Output: [${activations.map(a => a.toFixed(2)).join(', ')}]`, 93, 60);
+
+    // Update step counter and hidden layer values
+    document.getElementById('stepCounter').innerText = `Step: ${step}`;
+    document.getElementById('hiddenLayerValues').innerText = `Hidden Layer Values: [${hiddenLayerValues.map(a => a.toFixed(2)).join(', ')}]`;
+    document.getElementById('calculations').innerHTML = `Calculations:<br>${calculations.map((layerCalc, index) => `Layer ${index + 1}:<br>${layerCalc.join('<br>')}`).join('<br><br>')}`;
+
+    // Update explanation
+    updateExplanation(inputs, expectedOutputs, activations);
+}
+
 
         function nextExample() {
             const example = examples[currentExample];
@@ -296,13 +322,15 @@
             const explanationText = document.getElementById('explanationText');
             explanationText.innerHTML = `
                 <h3>Explanation:</h3>
-                <p>The network processes the input through the layers:</p>
-                <p>The input values are fed into the input layer.</p>
-                <p>These values are then multiplied by the weights connecting to the hidden layer and summed.</p>
-                <p>The sigmoid function is applied to each sum in the hidden layer to get the activation values.</p>
-                <p>The process repeats from the hidden layer to the output layer.</p>
-                <p>The final output is compared to the expected output to calculate the error.</p>
-                <p>The error is then used to adjust the weights through backpropagation.</p>
+                <p>In this step, the network processes the input through the layers:</p>
+                <ol>
+                    <p>The input values are fed into the input layer.</p>
+                    <p>These values are then multiplied by the weights connecting to the hidden layer and summed.</p>
+                    <p>The sigmoid function is applied to each sum in the hidden layer to get the activation values.</p>
+                    <p>The process repeats from the hidden layer to the output layer.</p>
+                    <p>The final output is compared to the expected output to calculate the error.</p>
+                    <p>The error is then used to adjust the weights through backpropagation.</p>
+                </ol>
                 <p>The goal is to minimize the difference between the actual and expected outputs over many training steps.</p>
             `;
         }
